@@ -1,5 +1,6 @@
-// The Swift Programming Language
-// https://docs.swift.org/swift-book
+// SPDX-FileCopyrightText: 2024 mtgto <hogerappa@gmail.com>
+// SPDX-License-Identifier: Apache-2.0
+
 import ArgumentParser
 import Foundation
 import Network
