@@ -21,8 +21,11 @@ struct Client: AsyncParsableCommand {
         while true {
             guard let line = readLine(strippingNewline: false) else { break }
             print("Send \(line)")
+            guard let encoded = line.data(using: .utf8) else { fatalError("Fail to encode string") }
+            let message = NWProtocolFramer.Message(request: .request(encoded))
+            let context = NWConnection.ContentContext(identifier: "SKKServRequest", metadata: [message])
             try await withCheckedThrowingContinuation { cont in
-                conn.send(content: line.data(using: .utf8), completion: .contentProcessed({ error in
+                conn.send(content: nil, contentContext: context, isComplete: true, completion: .contentProcessed({ error in
                     if let error {
                         cont.resume(throwing: error)
                     } else {
@@ -32,28 +35,22 @@ struct Client: AsyncParsableCommand {
             } as Void
             print("Receiving")
             let receive: Data? = try await withCheckedThrowingContinuation { cont in
-                conn.receive(minimumIncompleteLength: 0, maximumLength: 1024 * 1024) { content, contentContext, isComplete, error in
+                conn.receiveMessage { content, contentContext, isComplete, error in
                     if let error {
                         cont.resume(throwing: error)
+                    } else if let message = contentContext?.protocolMetadata(definition: SKKServProtocol.definition) as? NWProtocolFramer.Message, let response = message.response {
+                        cont.resume(returning: response)
                     } else {
-                        cont.resume(returning: content)
+                        cont.resume(returning: nil)
                     }
                 }
             }
-            print("Received")
-            if let receive {
-                data.append(receive)
-                if let index = data.firstIndex(of: 10) { // LFまでを読み込む
-                    let str = String(data: data.prefix(upTo: index), encoding: .utf8)
-                    print(str)
-                    data = data.dropFirst(index + 1)
-                }
-            }
+            print("Received \(receive?.count)")
         }
     }
 
     func connect(host: NWEndpoint.Host, port: NWEndpoint.Port) async throws -> NWConnection? {
-        let conn = NWConnection(host: host, port: port, using: .tcp)
+        let conn = NWConnection(host: host, port: port, using: .skkserv)
         return try await withCheckedThrowingContinuation { cont in
             conn.stateUpdateHandler = { state in
                 switch state {
