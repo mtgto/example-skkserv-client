@@ -5,10 +5,25 @@ import ArgumentParser
 import Foundation
 import Network
 
+enum ResponseEncoding: String, EnumerableFlag {
+    case eucJp
+    case utf8
+
+    var encoding: String.Encoding {
+        switch self {
+        case .eucJp:
+            return .japaneseEUC
+        case .utf8:
+            return .utf8
+        }
+    }
+}
+
 @main
 struct Client: AsyncParsableCommand {
     @Argument var host: String
     @Argument var port: UInt16 = 1178
+    @Flag var responseEncoding: ResponseEncoding
 
     mutating func run() async throws {
         guard let port = NWEndpoint.Port(rawValue: port) else {
@@ -18,9 +33,8 @@ struct Client: AsyncParsableCommand {
             fatalError("Cancelled")
         }
         var data = Data()
-        while true {
-            guard let line = readLine(strippingNewline: false) else { break }
-            print("Send \(line)")
+        while let line = readLine(strippingNewline: true) {
+            printErr("Send \(line)")
             guard let encoded = line.data(using: .utf8) else { fatalError("Fail to encode string") }
             let message = NWProtocolFramer.Message(request: .request(encoded))
             let context = NWConnection.ContentContext(identifier: "SKKServRequest", metadata: [message])
@@ -45,7 +59,14 @@ struct Client: AsyncParsableCommand {
                     }
                 }
             }
-            print("Received \(receive?.count)")
+            if let receive, let string = String(data: receive, encoding: responseEncoding.encoding) {
+                printErr("Received: \(string)")
+            } else if let receive, let string = String(data: receive, encoding: .japaneseEUC) {
+                // エントリが見つからなかったとき、yaskkserv2は "--midashi-utf8" で起動してても必ずEUC-JPで返す
+                printErr("Received: \(string)")
+            } else {
+                printErr("Invalid response (Decode Error): \(receive)")
+            }
         }
     }
 
@@ -55,18 +76,18 @@ struct Client: AsyncParsableCommand {
             conn.stateUpdateHandler = { state in
                 switch state {
                 case .ready:
-                    print("Ready")
+                    printErr("Ready")
                     cont.resume(returning: conn)
                 case .waiting:
-                    print("Waiting")
+                    printErr("Waiting")
                 case .failed(let error):
                     cont.resume(throwing: error)
                 case .setup:
-                    print("Setup")
+                    printErr("Setup")
                 case .preparing:
-                    print("Prepating")
+                    printErr("Prepating")
                 case .cancelled:
-                    print("Cancelled")
+                    printErr("Cancelled")
                     cont.resume(returning: nil)
                 @unknown default:
                     fatalError("Unknown status")

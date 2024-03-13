@@ -20,7 +20,7 @@ final class SKKServProtocol: NWProtocolFramerImplementation {
             let result = framer.parseInput(minimumIncompleteLength: 4, maximumLength: 1024 * 1024) { buffer, isComplete -> Int in
                 // TODO: 直前のリクエストがサーバーのバージョン要求、サーバーのホスト名とIPアドレスのリスト要求の場合はスペースが終端記号となる
                 if let buffer, let index = buffer.firstIndex(of: 0x0a) {
-                    print("Found LF at \(index)")
+                    printErr("Found LF at \(index)")
                     buffer[0..<index].withUnsafeBytes { pointer in
                         received = Data(pointer)
                     }
