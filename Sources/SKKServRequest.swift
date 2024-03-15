@@ -29,4 +29,15 @@ enum SKKServRequest {
             return Data([0x33, space, lf]) // '3' + space + LF
         }
     }
+
+    var terminateCharacter: UInt8 {
+        switch self {
+        case .request:
+            return 0x0a
+        case .version, .host:
+            return 0x20
+        default: // .end のときは応答がない
+            return 0
+        }
+    }
 }

@@ -7,6 +7,7 @@ import Network
 final class SKKServProtocol: NWProtocolFramerImplementation {
     static let label: String = "skkserv"
     static let definition = NWProtocolFramer.Definition(implementation: SKKServProtocol.self)
+    var lastRequest: SKKServRequest?
 
     required init(framer: NWProtocolFramer.Instance) {}
 
@@ -18,9 +19,10 @@ final class SKKServProtocol: NWProtocolFramerImplementation {
         while true {
             var received: Data? = nil
             let result = framer.parseInput(minimumIncompleteLength: 4, maximumLength: 1024 * 1024) { buffer, isComplete -> Int in
-                // TODO: 直前のリクエストがサーバーのバージョン要求、サーバーのホスト名とIPアドレスのリスト要求の場合はスペースが終端記号となる
-                if let buffer, let index = buffer.firstIndex(of: 0x0a) {
-                    printErr("Found LF at \(index)")
+                // 直前のリクエストがサーバーのバージョン要求、サーバーのホスト名とIPアドレスのリスト要求の場合はスペースが終端記号となりLFは送られない
+                // NOTE: 2024-03-15現在、yaskkserv2はIPアドレスのリスト要求の場合、スペースが終端記号になっていない
+                if let lastRequest, let buffer, let index = buffer.firstIndex(of: lastRequest.terminateCharacter) {
+                    printErr("Found at \(index)")
                     buffer[0..<index].withUnsafeBytes { pointer in
                         received = Data(pointer)
                     }
@@ -32,6 +34,8 @@ final class SKKServProtocol: NWProtocolFramerImplementation {
             }
             let message = NWProtocolFramer.Message(response: received)
             _ = framer.deliverInputNoCopy(length: received.count + 1, message: message, isComplete: true)
+            // 次のメッセージを待つ
+            return 0
         }
     }
 
@@ -39,6 +43,8 @@ final class SKKServProtocol: NWProtocolFramerImplementation {
         guard let request = message.request else {
             fatalError("request is not set")
         }
+        // 受信時に終端記号を決めるために直前のリクエストだけ保持しておく
+        lastRequest = request
         framer.writeOutput(data: request.data)
     }
 

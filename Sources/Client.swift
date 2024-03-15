@@ -37,6 +37,8 @@ struct Client: AsyncParsableCommand {
             let message: NWProtocolFramer.Message
             if line == "version" { // サーバーのバージョンを取得する
                 message = NWProtocolFramer.Message(request: .version)
+            } else if line == "host" {
+                message = NWProtocolFramer.Message(request: .host)
             } else if line == "end" {
                 message = NWProtocolFramer.Message(request: .end)
             } else {
@@ -53,7 +55,7 @@ struct Client: AsyncParsableCommand {
                     }
                 }))
             } as Void
-            print("Receiving")
+            printErr("Receiving")
             let receive: Data? = try await withCheckedThrowingContinuation { cont in
                 conn.receiveMessage { content, contentContext, isComplete, error in
                     if let error {
