@@ -34,9 +34,15 @@ struct Client: AsyncParsableCommand {
         }
         var data = Data()
         while let line = readLine(strippingNewline: true) {
-            printErr("Send \(line)")
-            guard let encoded = line.data(using: .utf8) else { fatalError("Fail to encode string") }
-            let message = NWProtocolFramer.Message(request: .request(encoded))
+            let message: NWProtocolFramer.Message
+            if line == "version" { // サーバーのバージョンを取得する
+                message = NWProtocolFramer.Message(request: .version)
+            } else if line == "end" {
+                message = NWProtocolFramer.Message(request: .end)
+            } else {
+                guard let encoded = line.data(using: .utf8) else { fatalError("Fail to encode string") }
+                message = NWProtocolFramer.Message(request: .request(encoded))
+            }
             let context = NWConnection.ContentContext(identifier: "SKKServRequest", metadata: [message])
             try await withCheckedThrowingContinuation { cont in
                 conn.send(content: nil, contentContext: context, isComplete: true, completion: .contentProcessed({ error in
@@ -78,8 +84,12 @@ struct Client: AsyncParsableCommand {
                 case .ready:
                     printErr("Ready")
                     cont.resume(returning: conn)
-                case .waiting:
-                    printErr("Waiting")
+                case .waiting(let error):
+                    // 接続先がbind + listenされてない場合には "POSIXErrorCode(rawValue: 61): Connection refused" が発生する
+                    // listenされているがacceptされない場合は "POSIXErrorCode(rawValue: 60): Operation timed out" が発生する
+                    // (NWProtocolTCP.OptionsでTCPのconnectionTimeoutが設定されていた場合。設定されてない場合は永久に待つっぽい)
+                    printErr("Waiting: \(error)")
+                    cont.resume(throwing: error)
                 case .failed(let error):
                     cont.resume(throwing: error)
                 case .setup:

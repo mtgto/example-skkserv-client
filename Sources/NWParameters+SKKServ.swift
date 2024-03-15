@@ -5,9 +5,11 @@ import Network
 
 extension NWParameters {
     static var skkserv: NWParameters {
-        let parameters = NWParameters.tcp
+        let tcpOptions = NWProtocolTCP.Options()
+        tcpOptions.connectionTimeout = 5
+        let parameters = NWParameters(tls: nil, tcp: tcpOptions)
         let options = NWProtocolFramer.Options(definition: SKKServProtocol.definition)
-        parameters.defaultProtocolStack.applicationProtocols.insert(options, at: 0)
+        parameters.defaultProtocolStack.applicationProtocols = [options]
         // parameters.acceptLocalOnly = true
         return parameters
     }
